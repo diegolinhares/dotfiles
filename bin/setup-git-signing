@@ -18,6 +18,10 @@ usage() {
     '  setup-git-signing --account ACCOUNT --vault VAULT --item ITEM [--github] [--github-title TITLE] [--dry-run]'
 }
 
+has_gum_ui() {
+  command -v gum >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]
+}
+
 while (($# > 0)); do
   case "$1" in
     --account)
@@ -59,6 +63,17 @@ while (($# > 0)); do
       ;;
   esac
 done
+
+if has_gum_ui && { [[ -z "$account" ]] || [[ -z "$vault" ]] || [[ -z "$item" ]]; }; then
+  gum style --bold --border rounded --padding '0 1' 'Configure Git signing'
+  [[ -n "$account" ]] || account="$(gum input --header '1Password account' --placeholder 'company.1password.com')"
+  [[ -n "$vault" ]] || vault="$(gum input --header '1Password vault' --placeholder 'Private')"
+  [[ -n "$item" ]] || item="$(gum input --header 'SSH Key item' --value 'GitHub')"
+  if gum confirm 'Register this key as a GitHub signing key?'; then
+    github=true
+    github_title="$(gum input --header 'GitHub signing key title' --value 'Mac - 1Password Signing')"
+  fi
+fi
 
 [[ -n "$account" ]] || { printf 'Provide the 1Password account with --account.\n' >&2; exit 2; }
 [[ -n "$vault" ]] || { printf 'Provide the 1Password vault with --vault.\n' >&2; exit 2; }
@@ -129,4 +144,8 @@ if [[ "$github" == true ]]; then
   fi
 fi
 
-printf 'Git commit and tag signing configured with 1Password.\n'
+if has_gum_ui; then
+  gum style --bold --foreground 42 'Git commit and tag signing configured with 1Password.'
+else
+  printf 'Git commit and tag signing configured with 1Password.\n'
+fi

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+test_root="$(mktemp -d)"
+trap 'rm -rf "$test_root"' EXIT
+
+mkdir -p "$test_root/bin" "$test_root/config"
+printf '#!/usr/bin/env bash\nexit 99\n' > "$test_root/bin/gum"
+chmod +x "$test_root/bin/gum"
+
+secret_key_name='AWS_SECRET_ACCESS_KEY'
+output="$(PATH="$test_root/bin:$PATH" XDG_CONFIG_HOME="$test_root/config" "$repo_root/bin/company" add acme --vault Employee --default AWS_DEFAULT_REGION=us-east-1 AWS_ACCESS_KEY_ID=AWS/AWS_ACCESS_KEY_ID "${secret_key_name}=AWS/${secret_key_name}")"
+profile="$test_root/config/company/acme.toml"
+
+[[ "$output" == "$profile" ]]
+[[ "$(stat -f '%Lp' "$profile")" == 600 ]]
+grep -Fq 'vault = "Employee"' "$profile"
+grep -Fq 'AWS_ACCESS_KEY_ID = { provider = "company", value = "AWS/AWS_ACCESS_KEY_ID" }' "$profile"
+grep -Fq 'AWS_DEFAULT_REGION = { default = "us-east-1" }' "$profile"
+
+printf 'gum non-interactive fallback test passed\n'

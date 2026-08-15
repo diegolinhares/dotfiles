@@ -17,4 +17,6 @@ if rg -n --hidden -g '!.git/**' -g '!README.md' -g '!bin/check' '(AKIA[0-9A-Z]{1
 fi
 
 mise -C "$repo_root" bootstrap --dry-run --skip task >/dev/null
+"$repo_root/tests/doctor-completes-with-unavailable-secrets"
+"$repo_root/tests/gum-noninteractive-fallback"
 printf 'dotfiles checks passed\n'

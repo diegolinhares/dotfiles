@@ -31,6 +31,10 @@ require_fnox() {
   command -v fnox >/dev/null 2>&1 || { printf 'fnox is required.\n' >&2; exit 1; }
 }
 
+has_gum_ui() {
+  command -v gum >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]
+}
+
 command_name="${1:-}"
 [[ -n "$command_name" ]] || { usage; exit 2; }
 shift
@@ -38,9 +42,13 @@ shift
 case "$command_name" in
   add)
     name="${1:-}"
+    if [[ -z "$name" ]] && has_gum_ui; then
+      gum style --bold --border rounded --padding '0 1' 'New company profile'
+      name="$(gum input --header 'Company name' --placeholder 'acme')"
+    fi
     [[ -n "$name" ]] || { usage >&2; exit 2; }
     validate_name "$name"
-    shift
+    (($# == 0)) || shift
     account=""
     vault=""
     references=()
@@ -77,6 +85,33 @@ case "$command_name" in
           ;;
       esac
     done
+    if has_gum_ui; then
+      if [[ -z "$account" ]] && gum confirm 'Use a specific 1Password account?'; then
+        account="$(gum input --header '1Password account' --placeholder 'company.1password.com')"
+      fi
+      if [[ -z "$vault" ]]; then
+        vault="$(gum input --header '1Password vault' --placeholder 'Employee')"
+      fi
+      if ((${#references[@]} + ${#defaults[@]} == 0)); then
+        profile_type="$(gum choose --header 'Credential profile' 'AWS credentials' 'Custom variables')"
+        if [[ "$profile_type" == 'AWS credentials' ]]; then
+          item="$(gum input --header '1Password item' --value 'AWS')"
+          region="$(gum choose --header 'AWS default region' us-east-1 us-east-2 sa-east-1 eu-west-1 'Other')"
+          if [[ "$region" == Other ]]; then
+            region="$(gum input --header 'AWS default region' --placeholder 'us-east-1')"
+          fi
+          secret_key_name='AWS_SECRET_ACCESS_KEY'
+          references+=("AWS_ACCESS_KEY_ID=${item}/AWS_ACCESS_KEY_ID")
+          references+=("${secret_key_name}=${item}/${secret_key_name}")
+          defaults+=("AWS_DEFAULT_REGION=${region}")
+        else
+          reference="$(gum input --header 'Secret reference' --placeholder 'KEY=Item/field')"
+          default="$(gum input --header 'Optional default' --placeholder 'KEY=value')"
+          [[ -z "$reference" ]] || references+=("$reference")
+          [[ -z "$default" ]] || defaults+=("$default")
+        fi
+      fi
+    fi
     [[ -n "$vault" ]] || { printf 'Provide the 1Password vault with --vault.\n' >&2; exit 2; }
     ((${#references[@]} + ${#defaults[@]} > 0)) || { printf 'Provide at least one secret reference or default value.\n' >&2; exit 2; }
     keys=()
@@ -106,7 +141,12 @@ case "$command_name" in
     mkdir -p "$profiles_dir"
     chmod 700 "$profiles_dir"
     destination="$(profile_path "$name")"
-    [[ ! -e "$destination" ]] || { printf 'Profile already exists: %s\n' "$destination" >&2; exit 1; }
+    if [[ -e "$destination" ]]; then
+      if ! has_gum_ui || ! gum confirm "Replace profile $name?"; then
+        printf 'Profile already exists: %s\n' "$destination" >&2
+        exit 1
+      fi
+    fi
     umask 077
     temporary="$(mktemp "${profiles_dir}/.${name}.XXXXXX")"
     {
@@ -125,7 +165,11 @@ case "$command_name" in
       done
     } > "$temporary"
     mv "$temporary" "$destination"
-    printf '%s\n' "$destination"
+    if has_gum_ui; then
+      gum style --bold --foreground 42 "Created $destination"
+    else
+      printf '%s\n' "$destination"
+    fi
     ;;
   edit)
     name="${1:-}"

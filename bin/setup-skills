@@ -8,7 +8,7 @@ agents_csv="${DOTFILES_AGENTS:-}"
 dry_run=false
 
 usage() {
-  printf 'Usage: %s --agents codex,cursor [--dry-run]\n' "$0"
+  printf 'Usage: %s [--agents codex,cursor] [--dry-run]\n' "$0"
 }
 
 while (($# > 0)); do
@@ -38,9 +38,15 @@ while (($# > 0)); do
 done
 
 if [[ -z "$agents_csv" ]]; then
-  printf 'Choose at least one agent with --agents.\n' >&2
-  usage >&2
-  exit 2
+  if command -v gum >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+    selected_agents="$(gum choose --no-limit --ordered --header 'Install skills for agents' codex cursor claude-code opencode)"
+    agents_csv="$(tr '\n' ',' <<< "$selected_agents")"
+    agents_csv="${agents_csv%,}"
+  else
+    printf 'Choose at least one agent with --agents.\n' >&2
+    usage >&2
+    exit 2
+  fi
 fi
 
 IFS=',' read -r -a agents <<< "$agents_csv"

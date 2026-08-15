@@ -16,8 +16,9 @@ cd ~/dotfiles
 O bootstrap instala ou configura:
 
 - mise 2026.8.6 ou superior;
-- Ruby 4.0.1, Node 22.20.0, Yarn 1.22.22 e mprocs 0.9.2 como versões globais;
-- tmux, ripgrep, fd, fzf, jq, bat, eza, zoxide, Atuin, lazygit, lazydocker, Yazi, Starship, fnox, GitHub CLI, Neovim e Git LFS;
+- Ruby, Node e Yarn em suas versões estáveis mais recentes, além de mprocs 0.9.2 como padrões globais;
+- tmux, ripgrep, fd, fzf, jq, bat, eza, zoxide, Atuin, lazygit, lazydocker, Yazi, Starship, fnox, GitHub CLI, Neovim, Git LFS, dua, btop, fastfetch, tldr, Mole, usage e gum;
+- servidores de linguagem para TypeScript, JavaScript, React e Ruby, com TypeScript Language Server, oxlint, ruby-lsp e RuboCop LSP;
 - 1Password, OrbStack, Google Chrome, Orca, Ghostty, AeroSpace, Ice e Maccy;
 - Homebrew com atualização automática diária, upgrade, limpeza e notificação em caso de erro;
 - OrbStack iniciado no login e como contexto padrão do Docker;
@@ -30,7 +31,17 @@ O setup instala `font-jetbrains-mono-nerd-font` pelo Homebrew. O Ghostty usa a f
 
 ## Mise global e projetos
 
-O bootstrap copia `mise.toml` para `~/.config/mise/config.toml`. Essas versões valem em qualquer diretório e worktree. Um `mise.toml` pertencente a um projeto pode substituir somente as versões daquele projeto.
+O bootstrap copia `mise.toml` para `~/.config/mise/config.toml`. Ruby, Node e Yarn usam `latest` como fallback em qualquer diretório e worktree. Um `mise.toml` pertencente a um projeto substitui somente as versões daquele projeto.
+
+Para atualizar o mise, resolver as globais `latest` e remover versões sem uso:
+
+```sh
+dotfiles update --dry-run
+dotfiles update
+dotfiles update --yes
+```
+
+O comando atualiza sem remover imediatamente as versões anteriores. Em seguida, o prune limitado aos runtimes globais e LSPs gerenciados remove apenas versões que não são a mais recente pedida por nenhuma configuração rastreada ou tool stub. Assim, uma versão declarada por um projeto continua instalada, e ferramentas avulsas como Claude, Bun ou agent-browser ficam fora da limpeza. Use o dry-run antes quando quiser revisar a lista.
 
 ## Skills
 
@@ -66,6 +77,8 @@ company run empresa -- rails server
 company shell empresa
 company list
 ```
+
+Executar `company add` sem argumentos abre um assistente com gum para escolher conta, cofre e tipo de credencial. O formato com flags continua disponível para automações e CI.
 
 O formato também aceita referências completas como `KEY=op://Vault/Item/field`. Ao entrar em outra empresa, crie os itens no cofre correto do 1Password e adicione um novo perfil. Os mesmos nomes de variáveis podem apontar para itens diferentes porque cada execução escolhe explicitamente o perfil.
 
@@ -106,6 +119,8 @@ ssh -T git@github.com
 Para assinar commits e tags com a mesma chave:
 
 ```sh
+setup-git-signing
+
 setup-git-signing \
   --account empresa.1password.com \
   --vault NomeDoCofre \
@@ -113,6 +128,8 @@ setup-git-signing \
   --github \
   --github-title "Mac - 1Password Signing"
 ```
+
+Sem argumentos, o comando abre um assistente com gum e pergunta se a chave também deve ser registrada como `Signing Key` no GitHub. O formato com flags permanece disponível para automação.
 
 O comando lê somente a chave pública, configura o executável de assinatura do 1Password e registra a chave como `Signing Key` no GitHub. O GitHub exige que a mesma chave seja cadastrada separadamente para autenticação e assinatura. A primeira execução pode pedir autorização para acrescentar o escopo `admin:ssh_signing_key` ao GitHub CLI.
 
@@ -128,6 +145,8 @@ Depois que a autenticação e a assinatura passarem nesses testes e a nova `Sign
 ## Manutenção
 
 ```sh
+dotfiles doctor
+dotfiles update --dry-run
 mise run check
 mise bootstrap status
 mise bootstrap --dry-run
@@ -135,4 +154,8 @@ mise bootstrap --yes
 mise upgrade
 ```
 
-O Homebrew atualiza diariamente por meio de `domt4/autoupdate`. As versões fixadas pelo mise só mudam quando `mise.toml` for atualizado.
+`dotfiles doctor` faz uma verificação somente de leitura das ferramentas, atualização automática, FileVault, firewall, agente SSH e assinatura pelo 1Password, OrbStack, perfis de empresa, espaço em disco, Time Machine e estado do repositório. Ele nunca executa limpezas do Mole.
+
+Quando há um terminal interativo, gum fornece entradas, escolhas, confirmações, indicadores de progresso e resumos estilizados. Em automações ou redirecionamentos, os scripts mantêm saída de texto e exigem flags explícitas.
+
+O Homebrew atualiza diariamente por meio de `domt4/autoupdate`. As versões fixadas pelo mise só mudam quando `mise.toml` for atualizado; as entradas `latest` avançam ao executar `dotfiles update`.
