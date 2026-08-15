@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+required_mise_version="2026.8.6"
+mise_sha256="163b4ff8c2d1ed29776970c6217f343f0944d55cf51f0d662de5b3bed260e170"
+agents_csv=""
+dry_run=false
+assume_yes=false
+
+usage() {
+  printf 'Usage: %s [--agents codex,cursor] [--dry-run] [--yes]\n' "$0"
+}
+
+version_at_least() {
+  local current="$1"
+  local required="$2"
+  local current_year current_month current_patch required_year required_month required_patch
+  IFS=. read -r current_year current_month current_patch <<< "$current"
+  IFS=. read -r required_year required_month required_patch <<< "$required"
+  ((current_year > required_year)) ||
+    ((current_year == required_year && current_month > required_month)) ||
+    ((current_year == required_year && current_month == required_month && current_patch >= required_patch))
+}
+
+install_mise() {
+  local destination="$HOME/.local/bin/mise"
+  local download_path
+  download_path="$(mktemp)"
+  curl -fsSL "https://github.com/jdx/mise/releases/download/v${required_mise_version}/mise-v${required_mise_version}-macos-arm64" -o "$download_path"
+  printf '%s  %s\n' "$mise_sha256" "$download_path" | shasum -a 256 -c - >/dev/null
+  mkdir -p "$(dirname "$destination")"
+  install -m 0755 "$download_path" "$destination"
+  rm -f "$download_path"
+  printf '%s\n' "$destination"
+}
+
+while (($# > 0)); do
+  case "$1" in
+    --agents)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      agents_csv="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --yes|-y)
+      assume_yes=true
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+[[ "$(uname -s)" == Darwin ]] || { printf 'This bootstrap supports macOS only.\n' >&2; exit 1; }
+[[ "$(uname -m)" == arm64 ]] || { printf 'This bootstrap supports Apple Silicon only.\n' >&2; exit 1; }
+
+mise_bin="$(command -v mise || true)"
+current_mise_version=""
+if [[ -n "$mise_bin" ]]; then
+  current_mise_version="$($mise_bin --version | awk '{print $1}')"
+fi
+
+if [[ -z "$current_mise_version" ]] || ! version_at_least "$current_mise_version" "$required_mise_version"; then
+  if [[ "$dry_run" == true ]]; then
+    printf 'Would install mise %s at %s/.local/bin/mise\n' "$required_mise_version" "$HOME"
+    exit 0
+  fi
+  mise_bin="$(install_mise)"
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+export DOTFILES_AGENTS="$agents_csv"
+export MISE_GLOBAL_CONFIG_FILE=/dev/null
+export MISE_TRUSTED_CONFIG_PATHS="$repo_root"
+unset MISE_RUBY_VERSION MISE_NODE_VERSION MISE_YARN_VERSION MISE_POSTGRES_VERSION MISE_MPROCS_VERSION
+
+bootstrap_args=()
+[[ "$dry_run" == true ]] && bootstrap_args+=(--dry-run)
+[[ "$assume_yes" == true ]] && bootstrap_args+=(--yes)
+
+if [[ "$dry_run" == false ]]; then
+  "$mise_bin" trust --yes "$repo_root/mise.toml"
+fi
+
+cd "$repo_root"
+"$mise_bin" bootstrap "${bootstrap_args[@]}"

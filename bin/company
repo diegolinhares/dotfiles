@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+profiles_dir="${XDG_CONFIG_HOME:-$HOME/.config}/company"
+
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  company add NAME KEY=op://Vault/Item/field [...]' \
+    '  company edit NAME' \
+    '  company list' \
+    '  company run NAME -- COMMAND [...]' \
+    '  company shell NAME'
+}
+
+validate_name() {
+  [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] || { printf 'Invalid company name: %s\n' "$1" >&2; exit 2; }
+}
+
+profile_path() {
+  printf '%s/%s.env\n' "$profiles_dir" "$1"
+}
+
+command_name="${1:-}"
+[[ -n "$command_name" ]] || { usage; exit 2; }
+shift
+
+case "$command_name" in
+  add)
+    name="${1:-}"
+    [[ -n "$name" ]] || { usage >&2; exit 2; }
+    validate_name "$name"
+    shift
+    (($# > 0)) || { printf 'Provide at least one KEY=op:// reference.\n' >&2; exit 2; }
+    for reference in "$@"; do
+      [[ "$reference" =~ ^[A-Za-z_][A-Za-z0-9_]*=op://.+ ]] || { printf 'Invalid reference: %s\n' "$reference" >&2; exit 2; }
+    done
+    mkdir -p "$profiles_dir"
+    chmod 700 "$profiles_dir"
+    destination="$(profile_path "$name")"
+    [[ ! -e "$destination" ]] || { printf 'Profile already exists: %s\n' "$destination" >&2; exit 1; }
+    umask 077
+    for reference in "$@"; do
+      printf '%s\n' "$reference" >> "$destination"
+    done
+    printf '%s\n' "$destination"
+    ;;
+  edit)
+    name="${1:-}"
+    [[ -n "$name" ]] || { usage >&2; exit 2; }
+    validate_name "$name"
+    destination="$(profile_path "$name")"
+    [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
+    "${EDITOR:-vi}" "$destination"
+    ;;
+  list)
+    [[ -d "$profiles_dir" ]] || exit 0
+    find "$profiles_dir" -maxdepth 1 -type f -name '*.env' -exec basename {} .env \; | sort
+    ;;
+  run)
+    name="${1:-}"
+    [[ -n "$name" ]] || { usage >&2; exit 2; }
+    validate_name "$name"
+    shift
+    [[ "${1:-}" == -- ]] || { usage >&2; exit 2; }
+    shift
+    (($# > 0)) || { usage >&2; exit 2; }
+    destination="$(profile_path "$name")"
+    [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
+    command -v op >/dev/null 2>&1 || { printf '1Password CLI is required.\n' >&2; exit 1; }
+    exec op run --env-file "$destination" -- "$@"
+    ;;
+  shell)
+    name="${1:-}"
+    [[ -n "$name" ]] || { usage >&2; exit 2; }
+    validate_name "$name"
+    destination="$(profile_path "$name")"
+    [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
+    command -v op >/dev/null 2>&1 || { printf '1Password CLI is required.\n' >&2; exit 1; }
+    exec op run --env-file "$destination" -- "${SHELL:-/bin/zsh}" -l
+    ;;
+  --help|-h|help)
+    usage
+    ;;
+  *)
+    printf 'Unknown command: %s\n' "$command_name" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

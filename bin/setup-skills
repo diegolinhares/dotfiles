@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+manifest_path="${script_dir}/../config/skills.tsv"
+agents_csv="${DOTFILES_AGENTS:-}"
+dry_run=false
+
+usage() {
+  printf 'Usage: %s --agents codex,cursor [--dry-run]\n' "$0"
+}
+
+while (($# > 0)); do
+  case "$1" in
+    --agents)
+      if (($# < 2)); then
+        usage >&2
+        exit 2
+      fi
+      agents_csv="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown argument: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$agents_csv" ]]; then
+  printf 'Choose at least one agent with --agents.\n' >&2
+  usage >&2
+  exit 2
+fi
+
+IFS=',' read -r -a agents <<< "$agents_csv"
+
+skills_cli=(skills)
+if ! command -v skills >/dev/null 2>&1; then
+  skills_cli=(npx --yes skills@1.5.22)
+fi
+
+for agent in "${agents[@]}"; do
+  if [[ -z "$agent" ]]; then
+    printf 'Agent names cannot be empty.\n' >&2
+    exit 2
+  fi
+done
+
+while IFS=$'\t' read -r source skills_csv; do
+  [[ -n "$source" ]] || continue
+  IFS=',' read -r -a selected_skills <<< "$skills_csv"
+  install_command=(
+    "${skills_cli[@]}" add "$source"
+    --global
+    --yes
+    --agent "${agents[@]}"
+    --skill "${selected_skills[@]}"
+  )
+
+  if [[ "$dry_run" == true ]]; then
+    printf '%q ' "${install_command[@]}"
+    printf '\n'
+  else
+    "${install_command[@]}"
+  fi
+done < "$manifest_path"

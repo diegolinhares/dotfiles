@@ -1,0 +1,11 @@
+auto_sync = true
+update_check = false
+sync_frequency = "5m"
+search_mode = "fuzzy"
+filter_mode = "global"
+workspaces = true
+style = "compact"
+inline_height = 40
+show_preview = true
+enter_accept = true
+secrets_filter = true

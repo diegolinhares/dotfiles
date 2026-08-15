@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dry_run=false
+[[ "${1:-}" == --dry-run ]] && dry_run=true
+
+run() {
+  if [[ "$dry_run" == true ]]; then
+    printf '%q ' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+command -v brew >/dev/null 2>&1 || { printf 'Homebrew is required.\n' >&2; exit 1; }
+
+install_app() {
+  local cask="$1"
+  local app_path="$2"
+  [[ -d "$app_path" ]] && return
+  run brew install --cask "$cask"
+}
+
+install_app 1password "/Applications/1Password.app"
+install_app orbstack "/Applications/OrbStack.app"
+install_app google-chrome "/Applications/Google Chrome.app"
+install_app ghostty "/Applications/Ghostty.app"
+install_app aerospace "/Applications/AeroSpace.app"
+install_app jordanbaird-ice "/Applications/Ice.app"
+install_app maccy "/Applications/Maccy.app"
+
+if [[ ! -d "/Applications/Orca.app" ]]; then
+  run brew tap stablyai/orca https://github.com/stablyai/homebrew-orca.git
+  run brew install --cask stablyai/orca/orca
+fi
+
+if ! brew list --cask font-jetbrains-mono-nerd-font >/dev/null 2>&1; then
+  run brew install --cask font-jetbrains-mono-nerd-font
+fi

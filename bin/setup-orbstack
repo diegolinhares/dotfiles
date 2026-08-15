@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dry_run=false
+[[ "${1:-}" == --dry-run ]] && dry_run=true
+
+run() {
+  if [[ "$dry_run" == true ]]; then
+    printf '%q ' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+[[ -d /Applications/OrbStack.app ]] || { printf 'OrbStack is not installed.\n' >&2; exit 1; }
+
+orbctl_bin="$(command -v orbctl || true)"
+if [[ -z "$orbctl_bin" ]]; then
+  orbctl_bin="/Applications/OrbStack.app/Contents/MacOS/bin/orbctl"
+fi
+[[ -x "$orbctl_bin" ]] || { printf 'orbctl was not found.\n' >&2; exit 1; }
+
+run "$orbctl_bin" start
+run "$orbctl_bin" config set app.start_at_login true
+
+if [[ "$dry_run" == true ]]; then
+  run docker context use orbstack
+  exit 0
+fi
+
+docker context inspect orbstack >/dev/null
+docker context use orbstack >/dev/null

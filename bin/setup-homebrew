@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dry_run=false
+[[ "${1:-}" == --dry-run ]] && dry_run=true
+
+run() {
+  if [[ "$dry_run" == true ]]; then
+    printf '%q ' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+if ! command -v brew >/dev/null 2>&1; then
+  if [[ "$dry_run" == true ]]; then
+    printf '%s\n' 'NONINTERACTIVE=1 /bin/bash Homebrew/install.sh'
+    exit 0
+  fi
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+run brew tap domt4/autoupdate
+run brew trust --command domt4/autoupdate/autoupdate
+
+if [[ "$dry_run" == true ]]; then
+  run brew autoupdate start 1d --upgrade --cleanup --immediate --notify-on-error
+  exit 0
+fi
+
+autoupdate_status="$(brew autoupdate status 2>/dev/null || true)"
+if [[ "$autoupdate_status" == *"Schedule: every 1 day"* &&
+      "$autoupdate_status" == *"Upgrade: formulae and casks"* &&
+      "$autoupdate_status" == *"Cleanup: yes"* &&
+      "$autoupdate_status" == *"Notifications: failures only"* ]]; then
+  exit 0
+fi
+
+if [[ "$autoupdate_status" == *"Autoupdate is installed and running"* ]]; then
+  brew autoupdate stop
+fi
+
+brew autoupdate start 1d --upgrade --cleanup --immediate --notify-on-error

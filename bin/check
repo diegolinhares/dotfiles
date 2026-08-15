@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export MISE_GLOBAL_CONFIG_FILE=/dev/null
+export MISE_TRUSTED_CONFIG_PATHS="$repo_root"
+unset MISE_RUBY_VERSION MISE_NODE_VERSION MISE_YARN_VERSION MISE_POSTGRES_VERSION MISE_MPROCS_VERSION
+
+while IFS= read -r script; do
+  bash -n "$script"
+done < <(find "$repo_root/bin" -maxdepth 1 -type f -perm -u+x | sort)
+
+if rg -n --hidden -g '!.git/**' -g '!README.md' -g '!bin/check' '(AKIA[0-9A-Z]{16}|ctx7sk-|CCIPAT_|AWS_SECRET_ACCESS_KEY=[^o])' "$repo_root"; then
+  printf 'Potential secret found in tracked files.\n' >&2
+  exit 1
+fi
+
+mise -C "$repo_root" bootstrap --dry-run --skip task >/dev/null
+printf 'dotfiles checks passed\n'

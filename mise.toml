@@ -1,0 +1,102 @@
+min_version = "2026.8.6"
+
+[settings]
+idiomatic_version_file_enable_tools = ["node", "ruby"]
+legacy_version_file = true
+fetch_remote_versions_cache = "7d"
+
+[env]
+EDITOR = "nvim"
+VISUAL = "nvim"
+
+[tools]
+ruby = "4.0.1"
+node = "22.20.0"
+yarn = "1.22.22"
+mprocs = "0.9.2"
+tmux = "3.7b"
+ripgrep = "15.2.0"
+fd = "10.4.2"
+fzf = "0.74.2"
+jq = "1.8.2"
+bat = "0.26.1"
+eza = "0.23.5"
+zoxide = "0.10.0"
+atuin = "18.19.0"
+lazygit = "0.64.1"
+lazydocker = "0.25.2"
+yazi = "26.5.6"
+starship = "1.26.0"
+gh = "2.97.0"
+neovim = "0.12.4"
+git-lfs = "3.7.1"
+"1password-cli" = "2.39.0"
+"npm:skills" = "1.5.22"
+"npm:mcporter" = "0.13.7"
+"npm:firecrawl-cli" = "1.20.0"
+
+[bootstrap.packages]
+"brew:ffmpeg" = "latest"
+"brew:fontconfig" = "latest"
+"brew:gmp" = "latest"
+"brew:imagemagick" = "latest"
+"brew:libffi" = "latest"
+"brew:libyaml" = "latest"
+"brew:openssl@3" = "latest"
+"brew:pkgconf" = "latest"
+"brew:poppler" = "latest"
+"brew:readline" = "latest"
+"brew:sevenzip" = "latest"
+
+[dotfiles]
+"~/.config/mise/config.toml" = { source = "~/dotfiles/mise.toml", mode = "copy" }
+"~/.zprofile" = { source = "~/dotfiles/files/home/.zprofile", mode = "copy" }
+"~/.zshrc" = { source = "~/dotfiles/files/home/.zshrc", mode = "copy" }
+"~/.gitconfig" = { source = "~/dotfiles/files/home/.gitconfig", mode = "copy" }
+"~/.gitignore_global" = { source = "~/dotfiles/files/home/.gitignore_global", mode = "copy" }
+"~/.ssh/config" = { source = "~/dotfiles/files/home/.ssh/config", mode = "copy" }
+"~/.config/aerospace/aerospace.toml" = { source = "~/dotfiles/files/home/.config/aerospace/aerospace.toml", mode = "copy" }
+"~/.config/atuin/config.toml" = { source = "~/dotfiles/files/home/.config/atuin/config.toml", mode = "copy" }
+"~/.config/ghostty/config" = { source = "~/dotfiles/files/home/.config/ghostty/config", mode = "copy" }
+"~/.config/starship.toml" = { source = "~/dotfiles/files/home/.config/starship.toml", mode = "copy" }
+"~/.local/bin/company" = { source = "~/dotfiles/bin/company", mode = "symlink" }
+
+[bootstrap.macos.dock]
+autohide = true
+orientation = "bottom"
+tilesize = 48
+show_recents = false
+
+[bootstrap.macos.finder]
+show_all_files = true
+show_pathbar = true
+show_status_bar = true
+show_extensions_warning = false
+preferred_view_style = "list"
+
+[bootstrap.macos.keyboard]
+key_repeat = 2
+initial_key_repeat = 15
+press_and_hold = false
+
+[bootstrap.macos.trackpad]
+tap_to_click = true
+three_finger_drag = true
+
+[bootstrap.hooks.pre-packages]
+run = 'bash "$HOME/dotfiles/bin/setup-homebrew"'
+
+[tasks.bootstrap]
+run = '''
+bash "$HOME/dotfiles/bin/setup-apps"
+bash "$HOME/dotfiles/bin/setup-orbstack"
+if [ -n "${DOTFILES_AGENTS:-}" ]; then
+  bash "$HOME/dotfiles/bin/setup-skills" --agents "$DOTFILES_AGENTS"
+fi
+'''
+
+[tasks.check]
+run = "./bin/check"
+
+[tasks.skills]
+run = 'test -n "${DOTFILES_AGENTS:-}" && ./bin/setup-skills --agents "$DOTFILES_AGENTS"'
