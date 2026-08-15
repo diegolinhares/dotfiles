@@ -26,6 +26,8 @@ O bootstrap instala ou configura:
 
 PostgreSQL e Redis não fazem parte deste setup. Worktrunk e configurações de Codex ou Claude também não são gerenciados aqui.
 
+O setup instala `font-jetbrains-mono-nerd-font` pelo Homebrew. O Ghostty usa a família monoespaçada `JetBrainsMono Nerd Font Mono`, necessária para os ícones do terminal.
+
 ## Mise global e projetos
 
 O bootstrap copia `mise.toml` para `~/.config/mise/config.toml`. Essas versões valem em qualquer diretório e worktree. Um `mise.toml` pertencente a um projeto pode substituir somente as versões daquele projeto.
