@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+set -u
+
+repo_root="${DOTFILES_DIR:-$HOME/dotfiles}"
+onepassword_socket="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+passed=0
+warnings=0
+failures=0
+
+pass() {
+  passed=$((passed + 1))
+  printf '[OK] %s\n' "$1"
+}
+
+warn() {
+  warnings=$((warnings + 1))
+  printf '[WARN] %s\n' "$1"
+}
+
+fail() {
+  failures=$((failures + 1))
+  printf '[FAIL] %s\n' "$1"
+}
+
+for command_name in mise brew git op fnox orbctl docker dua btop fastfetch tldr mo usage gum oxlint typescript-language-server tsserver ruby-lsp rubocop; do
+  if command -v "$command_name" >/dev/null 2>&1; then
+    pass "$command_name is available"
+  else
+    fail "$command_name is missing"
+  fi
+done
+
+if brew autoupdate status 2>/dev/null | grep -Fq 'Autoupdate is installed and running'; then
+  pass 'Homebrew autoupdate is running'
+else
+  fail 'Homebrew autoupdate is not running'
+fi
+
+if fdesetup status 2>/dev/null | grep -Fq 'FileVault is On.'; then
+  pass 'FileVault is enabled'
+else
+  fail 'FileVault is disabled'
+fi
+
+if /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null | grep -Fq 'Firewall is enabled'; then
+  pass 'macOS firewall is enabled'
+else
+  fail 'macOS firewall is disabled'
+fi
+
+if [[ -S "$onepassword_socket" ]] && SSH_AUTH_SOCK="$onepassword_socket" ssh-add -l >/dev/null 2>&1; then
+  pass '1Password SSH agent has an available key'
+else
+  fail '1Password SSH agent has no available key'
+fi
+
+signer="$(git config --get gpg.ssh.program 2>/dev/null || true)"
+if [[ "$(git config --get gpg.format 2>/dev/null || true)" == ssh &&
+      "$(git config --get commit.gpgsign 2>/dev/null || true)" == true &&
+      -n "$(git config --get user.signingkey 2>/dev/null || true)" &&
+      -x "$signer" ]]; then
+  pass 'Git commit signing uses the 1Password SSH signer'
+else
+  fail 'Git commit signing is not fully configured'
+fi
+
+if [[ "$(orbctl status 2>/dev/null || true)" == Running ]]; then
+  pass 'OrbStack is running'
+else
+  fail 'OrbStack is not running'
+fi
+
+if [[ "$(docker context show 2>/dev/null || true)" == orbstack ]]; then
+  pass 'Docker uses the OrbStack context'
+else
+  fail 'Docker does not use the OrbStack context'
+fi
+
+profiles_dir="${XDG_CONFIG_HOME:-$HOME/.config}/company"
+if [[ -d "$profiles_dir" ]]; then
+  profile_count=0
+  while IFS= read -r profile; do
+    profile_count=$((profile_count + 1))
+    profile_name="$(basename "$profile" .toml)"
+    if [[ "$(stat -f '%Lp' "$profile")" == 600 ]]; then
+      pass "company profile $profile_name has private permissions"
+    else
+      fail "company profile $profile_name must use permission 600"
+    fi
+  done < <(find "$profiles_dir" -maxdepth 1 -type f -name '*.toml' | sort)
+  ((profile_count > 0)) || warn 'no company profiles are configured'
+else
+  warn 'no company profiles are configured'
+fi
+
+available_kb="$(df -Pk / | awk 'NR == 2 {print $4}')"
+if [[ "$available_kb" =~ ^[0-9]+$ ]] && ((available_kb >= 20 * 1024 * 1024)); then
+  pass 'at least 20 GiB of disk space is available'
+else
+  warn 'less than 20 GiB of disk space is available'
+fi
+
+time_machine_info="$(tmutil destinationinfo 2>&1 || true)"
+if grep -Eq '^Name[[:space:]]*:' <<< "$time_machine_info"; then
+  pass 'Time Machine has a backup destination'
+else
+  warn 'Time Machine has no backup destination'
+fi
+
+if [[ -d "$repo_root/.git" ]]; then
+  if [[ -z "$(git -C "$repo_root" status --porcelain)" ]]; then
+    pass 'dotfiles repository is clean'
+  else
+    warn 'dotfiles repository has uncommitted changes'
+  fi
+else
+  fail "dotfiles repository was not found at $repo_root"
+fi
+
+summary="$passed passed, $warnings warnings, $failures failures"
+printf '\n'
+if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
+  if ((failures > 0)); then
+    gum style --bold --foreground 196 "$summary"
+  elif ((warnings > 0)); then
+    gum style --bold --foreground 214 "$summary"
+  else
+    gum style --bold --foreground 42 "$summary"
+  fi
+else
+  printf '%s\n' "$summary"
+fi
+((failures == 0))

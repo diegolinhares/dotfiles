@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="${DOTFILES_DIR:-$HOME/dotfiles}"
+
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  dotfiles doctor' \
+    '  dotfiles update [--dry-run] [--yes]'
+}
+
+has_gum_ui() {
+  command -v gum >/dev/null 2>&1 && [[ -t 0 && -t 1 ]]
+}
+
+run_long() {
+  local title="$1"
+  shift
+  if has_gum_ui; then
+    gum spin --spinner dot --title "$title" --show-error -- "$@"
+  else
+    "$@"
+  fi
+}
+
+case "${1:-}" in
+  doctor)
+    shift
+    (($# == 0)) || { usage >&2; exit 2; }
+    exec "$repo_root/bin/doctor"
+    ;;
+  update)
+    shift
+    dry_run=false
+    assume_yes=false
+    while (($# > 0)); do
+      case "$1" in
+        --dry-run)
+          dry_run=true
+          shift
+          ;;
+        --yes|-y)
+          assume_yes=true
+          shift
+          ;;
+        *)
+          usage >&2
+          exit 2
+          ;;
+      esac
+    done
+    managed_tools=(ruby node yarn oxlint npm:typescript npm:typescript-language-server gem:ruby-lsp gem:rubocop)
+    mise_bin="$(command -v mise)"
+    brew_mise=false
+    if command -v brew >/dev/null 2>&1 && brew list --formula mise >/dev/null 2>&1; then
+      [[ "$mise_bin" == "$(brew --prefix)/bin/mise" ]] && brew_mise=true
+    fi
+    if [[ "$dry_run" == true ]]; then
+      if [[ "$brew_mise" == true ]]; then
+        printf '%s\n' 'Would update mise with Homebrew.'
+      else
+        printf '%s\n' 'Would update the standalone mise binary.'
+      fi
+      mise -C "$HOME" upgrade --dry-run --no-prune
+      mise prune --dry-run --tools "${managed_tools[@]}"
+      mise prune --dry-run --configs
+    else
+      if [[ "$assume_yes" == false ]] && has_gum_ui; then
+        gum confirm 'Update mise tools and prune unused managed versions?' || exit 0
+      fi
+      if [[ "$brew_mise" == true ]]; then
+        run_long 'Updating mise with Homebrew...' brew upgrade mise
+      else
+        run_long 'Updating mise...' mise self-update --yes
+      fi
+      run_long 'Updating global tools...' mise -C "$HOME" upgrade --yes --no-prune
+      run_long 'Pruning unused managed versions...' mise prune --yes --tools "${managed_tools[@]}"
+      run_long 'Pruning stale project configs...' mise prune --yes --configs
+    fi
+    ;;
+  --help|-h|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

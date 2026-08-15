@@ -10,9 +10,9 @@ EDITOR = "nvim"
 VISUAL = "nvim"
 
 [tools]
-ruby = "4.0.1"
-node = "22.20.0"
-yarn = "1.22.22"
+ruby = "latest"
+node = "latest"
+yarn = "latest"
 mprocs = "0.9.2"
 tmux = "3.7b"
 ripgrep = "15.2.0"
@@ -33,13 +33,22 @@ neovim = "0.12.4"
 git-lfs = "3.7.1"
 "1password-cli" = "2.39.0"
 "npm:skills" = "1.5.22"
-"npm:mcporter" = "0.13.7"
+"npm:mcporter" = "0.13.0"
 "npm:firecrawl-cli" = "1.20.0"
+oxlint = "latest"
+"npm:typescript" = "6"
+"npm:typescript-language-server" = "latest"
+"gem:ruby-lsp" = "0.26.10"
+"gem:rubocop" = "latest"
 
 [bootstrap.packages]
+"brew:btop" = "latest"
+"brew:dua-cli" = "latest"
 "brew:ffmpeg" = "latest"
+"brew:fastfetch" = "latest"
 "brew:fontconfig" = "latest"
 "brew:gmp" = "latest"
+"brew:gum" = "latest"
 "brew:imagemagick" = "latest"
 "brew:libffi" = "latest"
 "brew:libyaml" = "latest"
@@ -48,6 +57,9 @@ git-lfs = "3.7.1"
 "brew:poppler" = "latest"
 "brew:readline" = "latest"
 "brew:sevenzip" = "latest"
+"brew:tlrc" = "latest"
+"brew:mole" = "latest"
+"brew:usage" = "latest"
 
 [dotfiles]
 "~/.config/mise/config.toml" = { source = "~/dotfiles/mise.toml", mode = "copy" }
@@ -62,6 +74,7 @@ git-lfs = "3.7.1"
 "~/.config/fnox/config.toml" = { source = "~/dotfiles/files/home/.config/fnox/config.toml", mode = "copy" }
 "~/.config/starship.toml" = { source = "~/dotfiles/files/home/.config/starship.toml", mode = "copy" }
 "~/.local/bin/company" = { source = "~/dotfiles/bin/company", mode = "symlink" }
+"~/.local/bin/dotfiles" = { source = "~/dotfiles/bin/dotfiles", mode = "symlink" }
 "~/.local/bin/setup-git-signing" = { source = "~/dotfiles/bin/setup-git-signing", mode = "symlink" }
 
 [bootstrap.macos.dock]
