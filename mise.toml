@@ -27,6 +27,7 @@ lazygit = "0.64.1"
 lazydocker = "0.25.2"
 yazi = "26.5.6"
 starship = "1.26.0"
+fnox = "1.33.0"
 gh = "2.97.0"
 neovim = "0.12.4"
 git-lfs = "3.7.1"
@@ -58,6 +59,7 @@ git-lfs = "3.7.1"
 "~/.config/aerospace/aerospace.toml" = { source = "~/dotfiles/files/home/.config/aerospace/aerospace.toml", mode = "copy" }
 "~/.config/atuin/config.toml" = { source = "~/dotfiles/files/home/.config/atuin/config.toml", mode = "copy" }
 "~/.config/ghostty/config" = { source = "~/dotfiles/files/home/.config/ghostty/config", mode = "copy" }
+"~/.config/fnox/config.toml" = { source = "~/dotfiles/files/home/.config/fnox/config.toml", mode = "copy" }
 "~/.config/starship.toml" = { source = "~/dotfiles/files/home/.config/starship.toml", mode = "copy" }
 "~/.local/bin/company" = { source = "~/dotfiles/bin/company", mode = "symlink" }
 

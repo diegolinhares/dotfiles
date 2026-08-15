@@ -7,9 +7,10 @@ profiles_dir="${XDG_CONFIG_HOME:-$HOME/.config}/company"
 usage() {
   printf '%s\n' \
     'Usage:' \
-    '  company add NAME KEY=op://Vault/Item/field [...]' \
+    '  company add NAME --vault VAULT [--account ACCOUNT] KEY=Item/field [...]' \
     '  company edit NAME' \
     '  company list' \
+    '  company check NAME' \
     '  company run NAME -- COMMAND [...]' \
     '  company shell NAME'
 }
@@ -19,7 +20,15 @@ validate_name() {
 }
 
 profile_path() {
-  printf '%s/%s.env\n' "$profiles_dir" "$1"
+  printf '%s/%s.toml\n' "$profiles_dir" "$1"
+}
+
+toml_string() {
+  jq -Rn --arg value "$1" '$value'
+}
+
+require_fnox() {
+  command -v fnox >/dev/null 2>&1 || { printf 'fnox is required.\n' >&2; exit 1; }
 }
 
 command_name="${1:-}"
@@ -32,18 +41,70 @@ case "$command_name" in
     [[ -n "$name" ]] || { usage >&2; exit 2; }
     validate_name "$name"
     shift
-    (($# > 0)) || { printf 'Provide at least one KEY=op:// reference.\n' >&2; exit 2; }
-    for reference in "$@"; do
-      [[ "$reference" =~ ^[A-Za-z_][A-Za-z0-9_]*=op://.+ ]] || { printf 'Invalid reference: %s\n' "$reference" >&2; exit 2; }
+    account=""
+    vault=""
+    references=()
+    while (($# > 0)); do
+      case "$1" in
+        --account)
+          (($# >= 2)) || { usage >&2; exit 2; }
+          account="$2"
+          shift 2
+          ;;
+        --vault)
+          (($# >= 2)) || { usage >&2; exit 2; }
+          vault="$2"
+          shift 2
+          ;;
+        --)
+          shift
+          references+=("$@")
+          break
+          ;;
+        -*)
+          printf 'Unknown option: %s\n' "$1" >&2
+          exit 2
+          ;;
+        *)
+          references+=("$1")
+          shift
+          ;;
+      esac
     done
+    [[ -n "$vault" ]] || { printf 'Provide the 1Password vault with --vault.\n' >&2; exit 2; }
+    ((${#references[@]} > 0)) || { printf 'Provide at least one KEY=Item/field reference.\n' >&2; exit 2; }
+    keys=()
+    values=()
+    seen_keys=" "
+    for reference in "${references[@]}"; do
+      [[ "$reference" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.+)$ ]] || { printf 'Invalid reference: %s\n' "$reference" >&2; exit 2; }
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      [[ "$seen_keys" != *" $key "* ]] || { printf 'Duplicate variable: %s\n' "$key" >&2; exit 2; }
+      seen_keys+="$key "
+      keys+=("$key")
+      values+=("$value")
+    done
+    command -v jq >/dev/null 2>&1 || { printf 'jq is required.\n' >&2; exit 1; }
     mkdir -p "$profiles_dir"
     chmod 700 "$profiles_dir"
     destination="$(profile_path "$name")"
     [[ ! -e "$destination" ]] || { printf 'Profile already exists: %s\n' "$destination" >&2; exit 1; }
     umask 077
-    for reference in "$@"; do
-      printf '%s\n' "$reference" >> "$destination"
-    done
+    temporary="$(mktemp "${profiles_dir}/.${name}.XXXXXX")"
+    {
+      printf 'env = "exec"\n'
+      printf 'if_missing = "error"\n\n'
+      printf '[providers.company]\n'
+      printf 'type = "1password"\n'
+      [[ -z "$account" ]] || printf 'account = %s\n' "$(toml_string "$account")"
+      printf 'vault = %s\n\n' "$(toml_string "$vault")"
+      printf '[secrets]\n'
+      for ((index = 0; index < ${#keys[@]}; index++)); do
+        printf '%s = { provider = "company", value = %s }\n' "${keys[$index]}" "$(toml_string "${values[$index]}")"
+      done
+    } > "$temporary"
+    mv "$temporary" "$destination"
     printf '%s\n' "$destination"
     ;;
   edit)
@@ -56,7 +117,16 @@ case "$command_name" in
     ;;
   list)
     [[ -d "$profiles_dir" ]] || exit 0
-    find "$profiles_dir" -maxdepth 1 -type f -name '*.env' -exec basename {} .env \; | sort
+    find "$profiles_dir" -maxdepth 1 -type f -name '*.toml' -exec basename {} .toml \; | sort
+    ;;
+  check)
+    name="${1:-}"
+    [[ -n "$name" ]] || { usage >&2; exit 2; }
+    validate_name "$name"
+    destination="$(profile_path "$name")"
+    [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
+    require_fnox
+    fnox --config "$destination" check
     ;;
   run)
     name="${1:-}"
@@ -68,8 +138,8 @@ case "$command_name" in
     (($# > 0)) || { usage >&2; exit 2; }
     destination="$(profile_path "$name")"
     [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
-    command -v op >/dev/null 2>&1 || { printf '1Password CLI is required.\n' >&2; exit 1; }
-    exec op run --env-file "$destination" -- "$@"
+    require_fnox
+    exec fnox --config "$destination" exec --replace -- "$@"
     ;;
   shell)
     name="${1:-}"
@@ -77,8 +147,8 @@ case "$command_name" in
     validate_name "$name"
     destination="$(profile_path "$name")"
     [[ -f "$destination" ]] || { printf 'Profile not found: %s\n' "$destination" >&2; exit 1; }
-    command -v op >/dev/null 2>&1 || { printf '1Password CLI is required.\n' >&2; exit 1; }
-    exec op run --env-file "$destination" -- "${SHELL:-/bin/zsh}" -l
+    require_fnox
+    exec fnox --config "$destination" exec --replace -- "${SHELL:-/bin/zsh}" -l
     ;;
   --help|-h|help)
     usage

@@ -12,6 +12,10 @@ if command -v atuin >/dev/null 2>&1; then
   eval "$(atuin init zsh)"
 fi
 
+if command -v fnox >/dev/null 2>&1; then
+  eval "$(fnox activate zsh)"
+fi
+
 if command -v zoxide >/dev/null 2>&1; then
   eval "$(zoxide init zsh)"
   alias cd=zd
