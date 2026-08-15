@@ -62,6 +62,7 @@ git-lfs = "3.7.1"
 "~/.config/fnox/config.toml" = { source = "~/dotfiles/files/home/.config/fnox/config.toml", mode = "copy" }
 "~/.config/starship.toml" = { source = "~/dotfiles/files/home/.config/starship.toml", mode = "copy" }
 "~/.local/bin/company" = { source = "~/dotfiles/bin/company", mode = "symlink" }
+"~/.local/bin/setup-git-signing" = { source = "~/dotfiles/bin/setup-git-signing", mode = "symlink" }
 
 [bootstrap.macos.dock]
 autohide = true

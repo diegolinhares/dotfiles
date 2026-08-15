@@ -70,7 +70,57 @@ Os perfis fnox são salvos em `~/.config/company` com permissão privada e nunca
 
 ## SSH
 
-As chaves privadas não são copiadas pelo dotfiles. Ative o SSH Agent nas configurações do aplicativo 1Password e adicione as chaves ao cofre. O arquivo SSH gerenciado aponta para o socket do 1Password e preserva a integração do OrbStack.
+As chaves privadas não são copiadas pelo dotfiles. No aplicativo 1Password, ative `Settings > Developer > Use the SSH agent` e a integração da CLI. O arquivo SSH gerenciado aponta para o socket do 1Password e preserva a integração do OrbStack.
+
+Para criar uma chave Ed25519 diretamente no 1Password:
+
+```sh
+op item create \
+  --account empresa.1password.com \
+  --vault NomeDoCofre \
+  --category ssh \
+  --title GitHub
+```
+
+Se a importação de uma chave OpenSSH antiga for rejeitada pelo 1Password, gere uma nova diretamente com o comando acima e mantenha a antiga como fallback até concluir os testes. Copie somente a chave pública:
+
+```sh
+op item get GitHub \
+  --account empresa.1password.com \
+  --vault NomeDoCofre \
+  --format json \
+  | jq -r '.fields[] | select(.id == "public_key") | .value' \
+  | pbcopy
+```
+
+Cadastre-a no GitHub em `Settings > SSH and GPG keys` como `Authentication Key`. Confirme que a autenticação usa o agente:
+
+```sh
+ssh-add -l
+ssh -T git@github.com
+```
+
+Para assinar commits e tags com a mesma chave:
+
+```sh
+setup-git-signing \
+  --account empresa.1password.com \
+  --vault NomeDoCofre \
+  --item GitHub \
+  --github \
+  --github-title "Mac - 1Password Signing"
+```
+
+O comando lê somente a chave pública, configura o executável de assinatura do 1Password e registra a chave como `Signing Key` no GitHub. O GitHub exige que a mesma chave seja cadastrada separadamente para autenticação e assinatura. A primeira execução pode pedir autorização para acrescentar o escopo `admin:ssh_signing_key` ao GitHub CLI.
+
+A configuração específica da máquina fica em `~/.config/git/signing.conf` e a lista usada para verificação local em `~/.config/git/allowed_signers`, ambas com permissão privada e fora deste repositório. Um commit ou tag solicitará autorização pelo 1Password e Touch ID. Para conferir:
+
+```sh
+git log --show-signature -1
+git verify-commit HEAD
+```
+
+Depois que a autenticação e a assinatura passarem nesses testes e a nova `Signing Key` estiver cadastrada no GitHub, remova qualquer `IdentityFile` da chave antiga em `~/.ssh/config` e teste o agente novamente antes de arquivar ou excluir o par antigo. O bootstrap nunca apaga chaves privadas automaticamente.
 
 ## Manutenção
 

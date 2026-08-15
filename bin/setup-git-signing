@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+account=""
+vault=""
+item=""
+github=false
+github_title=""
+dry_run=false
+signer="/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+git_config="${XDG_CONFIG_HOME:-$HOME/.config}/git/signing.conf"
+allowed_signers="${XDG_CONFIG_HOME:-$HOME/.config}/git/allowed_signers"
+
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  setup-git-signing --account ACCOUNT --vault VAULT --item ITEM [--github] [--github-title TITLE] [--dry-run]'
+}
+
+while (($# > 0)); do
+  case "$1" in
+    --account)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      account="$2"
+      shift 2
+      ;;
+    --vault)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      vault="$2"
+      shift 2
+      ;;
+    --item)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      item="$2"
+      shift 2
+      ;;
+    --github)
+      github=true
+      shift
+      ;;
+    --github-title)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      github_title="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'Unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+[[ -n "$account" ]] || { printf 'Provide the 1Password account with --account.\n' >&2; exit 2; }
+[[ -n "$vault" ]] || { printf 'Provide the 1Password vault with --vault.\n' >&2; exit 2; }
+[[ -n "$item" ]] || { printf 'Provide the SSH Key item with --item.\n' >&2; exit 2; }
+
+if [[ "$dry_run" == true ]]; then
+  printf 'Would read the public key from 1Password item %s in vault %s.\n' "$item" "$vault"
+  printf 'Would configure SSH commit and tag signing in %s.\n' "$git_config"
+  printf 'Would configure local verification in %s.\n' "$allowed_signers"
+  [[ "$github" == false ]] || printf 'Would register the public key as a GitHub signing key.\n'
+  exit 0
+fi
+
+for required_command in git op jq; do
+  command -v "$required_command" >/dev/null 2>&1 || { printf '%s is required.\n' "$required_command" >&2; exit 1; }
+done
+
+[[ -x "$signer" ]] || { printf '1Password SSH signer not found at %s.\n' "$signer" >&2; exit 1; }
+
+git_version="$(git version | awk '{print $3}')"
+IFS=. read -r git_major git_minor _ <<< "$git_version"
+if ((git_major < 2 || (git_major == 2 && git_minor < 34))); then
+  printf 'Git 2.34 or newer is required. Found %s.\n' "$git_version" >&2
+  exit 1
+fi
+
+email="$(git config --global --get user.email || true)"
+[[ -n "$email" ]] || { printf 'Configure user.email in Git before enabling signing.\n' >&2; exit 1; }
+
+public_key="$(op item get "$item" --account "$account" --vault "$vault" --format json | jq -er '.fields[] | select(.id == "public_key") | .value')"
+[[ "$public_key" == ssh-* ]] || { printf 'The selected item does not contain a valid SSH public key.\n' >&2; exit 1; }
+
+mkdir -p "$(dirname "$git_config")"
+umask 077
+touch "$git_config"
+git config --file "$git_config" user.signingkey "$public_key"
+git config --file "$git_config" gpg.format ssh
+git config --file "$git_config" gpg.ssh.program "$signer"
+git config --file "$git_config" gpg.ssh.allowedSignersFile "$allowed_signers"
+git config --file "$git_config" commit.gpgsign true
+git config --file "$git_config" tag.gpgSign true
+chmod 600 "$git_config"
+
+temporary="$(mktemp "$(dirname "$allowed_signers")/.allowed_signers.XXXXXX")"
+printf '%s %s\n' "$email" "$public_key" > "$temporary"
+chmod 600 "$temporary"
+mv "$temporary" "$allowed_signers"
+
+if ! git config --global --get-all include.path | /usr/bin/grep -Fxq '~/.config/git/signing.conf'; then
+  git config --global --add include.path '~/.config/git/signing.conf'
+fi
+
+if [[ "$github" == true ]]; then
+  command -v gh >/dev/null 2>&1 || { printf 'gh is required to register the signing key on GitHub.\n' >&2; exit 1; }
+  [[ -n "$github_title" ]] || github_title="1Password - $item"
+  if ! github_keys="$(gh api user/ssh_signing_keys 2>/dev/null)"; then
+    printf 'GitHub authorization needs the admin:ssh_signing_key scope.\n'
+    gh auth refresh -h github.com -s admin:ssh_signing_key
+    github_keys="$(gh api user/ssh_signing_keys)"
+  fi
+  key_material="$(awk '{print $1 " " $2}' <<< "$public_key")"
+  if jq -e --arg key "$key_material" 'any(.[]; ((.key | split(" ") | .[0:2] | join(" ")) == $key))' <<< "$github_keys" >/dev/null; then
+    printf 'GitHub signing key is already registered.\n'
+  else
+    jq -n --arg title "$github_title" --arg key "$public_key" '{title: $title, key: $key}' \
+      | gh api --method POST user/ssh_signing_keys --input - >/dev/null
+    printf 'GitHub signing key registered as %s.\n' "$github_title"
+  fi
+fi
+
+printf 'Git commit and tag signing configured with 1Password.\n'
