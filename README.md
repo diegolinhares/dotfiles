@@ -1,51 +1,49 @@
 # dotfiles
 
-Setup reproduzível para macOS em Apple Silicon, orquestrado pelo mise.
+These are the files and scripts I use to set up an Apple Silicon Mac. Everything starts with `./bin/bootstrap`.
 
-## Nova máquina
+## Install
 
-O único pré-requisito é o Git fornecido pelas Command Line Tools do macOS.
+The only prerequisite is Git from the macOS Command Line Tools. If Git is missing, run `xcode-select --install` first.
 
 ```sh
 git clone https://github.com/diegolinhares/dotfiles.git ~/dotfiles
 cd ~/dotfiles
+
 ./bin/bootstrap --dry-run --agents codex,cursor
 ./bin/bootstrap --yes --agents codex,cursor
 ```
 
-O bootstrap instala ou configura:
+`--agents` accepts `codex`, `cursor`, `claude-code`, and `opencode`. Omit it if you do not want to install skills during bootstrap.
 
-- mise 2026.8.6 ou superior;
-- Ruby, Node e Yarn em suas versões estáveis mais recentes, além de mprocs 0.9.2 como padrões globais;
-- tmux, ripgrep, fd, fzf, jq, bat, eza, zoxide, Atuin, lazygit, lazydocker, Yazi, Starship, fnox, GitHub CLI, Neovim, Git LFS, dua, btop, fastfetch, tldr, Mole, usage e gum;
-- servidores de linguagem para TypeScript, JavaScript, React e Ruby, com TypeScript Language Server, oxlint, ruby-lsp e RuboCop LSP;
-- 1Password, OrbStack, Google Chrome, Orca, Ghostty, AeroSpace, Ice e Maccy;
-- Homebrew com atualização automática diária, upgrade, limpeza e notificação em caso de erro;
-- OrbStack iniciado no login e como contexto padrão do Docker;
-- configurações de Zsh, Git, SSH, Ghostty, AeroSpace, Atuin e Starship;
-- defaults de Dock, Finder, teclado e trackpad.
+The setup includes:
 
-PostgreSQL e Redis não fazem parte deste setup. Worktrunk e configurações de Codex ou Claude também não são gerenciados aqui.
+- current global Ruby, Node, and Yarn versions, plus the command-line tools and language servers declared in [`mise.toml`](mise.toml)
+- 1Password, OrbStack, Chrome, Orca, Ghostty, AeroSpace, Ice, and Maccy
+- the JetBrains Mono Nerd Font used by Ghostty
+- Zsh, Git, SSH, Ghostty, AeroSpace, Atuin, Starship, and fnox configuration
+- daily Homebrew updates with upgrades, cleanup, and failure notifications
+- OrbStack at login and the `orbstack` Docker context by default
+- Dock, Finder, keyboard, and trackpad defaults
 
-O setup instala `font-jetbrains-mono-nerd-font` pelo Homebrew. O Ghostty usa a família monoespaçada `JetBrainsMono Nerd Font Mono`, necessária para os ícones do terminal.
+The bootstrap supports Apple Silicon Macs only.
 
-## Mise global e projetos
+## Tool versions
 
-O bootstrap copia `mise.toml` para `~/.config/mise/config.toml`. Ruby, Node e Yarn usam `latest` como fallback em qualquer diretório e worktree. Um `mise.toml` pertencente a um projeto substitui somente as versões daquele projeto.
+The bootstrap copies the root `mise.toml` to `~/.config/mise/config.toml`. Its `latest` Ruby, Node, and Yarn entries act as global fallbacks in every directory and worktree. A project's own `mise.toml` still takes precedence.
 
-Para atualizar o mise, resolver as globais `latest` e remover versões sem uso:
+Use the wrapper to update mise, resolve the global `latest` versions, and remove old managed versions that no tracked project needs:
 
 ```sh
 dotfiles update --dry-run
 dotfiles update
-dotfiles update --yes
 ```
 
-O comando atualiza sem remover imediatamente as versões anteriores. Em seguida, o prune limitado aos runtimes globais e LSPs gerenciados remove apenas versões que não são a mais recente pedida por nenhuma configuração rastreada ou tool stub. Assim, uma versão declarada por um projeto continua instalada, e ferramentas avulsas como Claude, Bun ou agent-browser ficam fora da limpeza. Use o dry-run antes quando quiser revisar a lista.
+The cleanup only removes managed versions. Project versions and unmanaged tools are left alone.
 
-## Skills
+## Agent skills
 
-As skills ficam declaradas em `config/skills.tsv`. O agente é escolhido na execução:
+Skills live in [`config/skills.tsv`](config/skills.tsv), separate from any one agent. Install them for the tools you use:
 
 ```sh
 ./bin/setup-skills --agents codex,cursor
@@ -53,109 +51,64 @@ As skills ficam declaradas em `config/skills.tsv`. O agente é escolhido na exec
 ./bin/setup-skills --agents codex,cursor --dry-run
 ```
 
-Para adicionar outra skill depois, inclua a fonte e os nomes no manifesto e execute novamente o instalador.
+Running `./bin/setup-skills` in a terminal opens an interactive picker. To add a skill, update the manifest and run the installer again.
 
-O conjunto inclui React, Motion, Remotion, Playwright, Vitest, TLC Spec Driven, Impeccable, Firecrawl, shadcn, Context7, Humanizer, Exa e práticas modernas de frontend.
+## Company secrets
 
-## Segredos e empresas
+Secret values stay in 1Password. The `company` command creates local fnox profiles containing references, then loads the selected profile only for the process that needs it. Profiles are stored under `~/.config/company` with private permissions and are not committed.
 
-Valores secretos ficam no 1Password. O fnox resolve as referências somente ao executar um processo, sem colocar os segredos no shell global. O repositório e os perfis locais guardam apenas referências.
-
-Para credenciais AWS pessoais, crie um item `AWS` do tipo `API Credential` no cofre privado da empresa, com os campos `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`. Escolha a região explicitamente para cada perfil; ela pode variar por empresa, conta ou projeto e não precisa ser armazenada como segredo.
+Running `company add` opens an interactive setup. The flag-based form is useful when the profile is already known:
 
 ```sh
-company add empresa \
-  --account empresa.1password.com \
+company add acme \
+  --account acme.1password.com \
   --vault Employee \
   --default AWS_DEFAULT_REGION=us-east-2 \
   AWS_ACCESS_KEY_ID=AWS/AWS_ACCESS_KEY_ID \
   AWS_SECRET_ACCESS_KEY=AWS/AWS_SECRET_ACCESS_KEY
 
-company check empresa
-company run empresa -- aws sts get-caller-identity
-company run empresa -- rails server
-company shell empresa
-company list
+company check acme
+company run acme -- aws sts get-caller-identity
+company run acme -- rails server
+company shell acme
 ```
 
-Executar `company add` sem argumentos abre um assistente com gum para escolher conta, cofre e tipo de credencial. O formato com flags continua disponível para automações e CI.
+When I start work with another company, I create another profile. The environment variable names can stay the same because each command chooses which account, vault, and item to use.
 
-O formato também aceita referências completas como `KEY=op://Vault/Item/field`. Ao entrar em outra empresa, crie os itens no cofre correto do 1Password e adicione um novo perfil. Os mesmos nomes de variáveis podem apontar para itens diferentes porque cada execução escolhe explicitamente o perfil.
+## SSH and signed commits
 
-Os perfis fnox são salvos em `~/.config/company` com permissão privada e nunca entram no Git. A configuração segue o mesmo modelo do Nate, mas conta e cofre não ficam fixados no dotfiles. O Shell Plugin da AWS do 1Password é opcional e atende comandos AWS diretamente; o fnox continua sendo usado para Rails, testes, agentes e outros processos.
-
-## SSH
-
-As chaves privadas não são copiadas pelo dotfiles. No aplicativo 1Password, ative `Settings > Developer > Use the SSH agent` e a integração da CLI. O arquivo SSH gerenciado aponta para o socket do 1Password e preserva a integração do OrbStack.
-
-Para criar uma chave Ed25519 diretamente no 1Password:
-
-```sh
-op item create \
-  --account empresa.1password.com \
-  --vault NomeDoCofre \
-  --category ssh \
-  --title GitHub
-```
-
-Se a importação de uma chave OpenSSH antiga for rejeitada pelo 1Password, gere uma nova diretamente com o comando acima e mantenha a antiga como fallback até concluir os testes. Copie somente a chave pública:
-
-```sh
-op item get GitHub \
-  --account empresa.1password.com \
-  --vault NomeDoCofre \
-  --format json \
-  | jq -r '.fields[] | select(.id == "public_key") | .value' \
-  | pbcopy
-```
-
-Cadastre-a no GitHub em `Settings > SSH and GPG keys` como `Authentication Key`. Confirme que a autenticação usa o agente:
+Private SSH keys also stay in 1Password. Enable the SSH agent and CLI integration in `1Password > Settings > Developer`, then create or import an SSH Key item. Add its public key to GitHub as an authentication key and check the connection:
 
 ```sh
 ssh-add -l
 ssh -T git@github.com
 ```
 
-Para assinar commits e tags com a mesma chave:
+`setup-git-signing` uses the same public key for commit and tag signing. Without flags, it opens an interactive setup and can register the key as a GitHub signing key.
 
 ```sh
 setup-git-signing
-
-setup-git-signing \
-  --account empresa.1password.com \
-  --vault NomeDoCofre \
-  --item GitHub \
-  --github \
-  --github-title "Mac - 1Password Signing"
-```
-
-Sem argumentos, o comando abre um assistente com gum e pergunta se a chave também deve ser registrada como `Signing Key` no GitHub. O formato com flags permanece disponível para automação.
-
-O comando lê somente a chave pública, configura o executável de assinatura do 1Password e registra a chave como `Signing Key` no GitHub. O GitHub exige que a mesma chave seja cadastrada separadamente para autenticação e assinatura. A primeira execução pode pedir autorização para acrescentar o escopo `admin:ssh_signing_key` ao GitHub CLI.
-
-A configuração específica da máquina fica em `~/.config/git/signing.conf` e a lista usada para verificação local em `~/.config/git/allowed_signers`, ambas com permissão privada e fora deste repositório. Um commit ou tag solicitará autorização pelo 1Password e Touch ID. Para conferir:
-
-```sh
-git log --show-signature -1
 git verify-commit HEAD
 ```
 
-Depois que a autenticação e a assinatura passarem nesses testes e a nova `Signing Key` estiver cadastrada no GitHub, remova qualquer `IdentityFile` da chave antiga em `~/.ssh/config` e teste o agente novamente antes de arquivar ou excluir o par antigo. O bootstrap nunca apaga chaves privadas automaticamente.
+GitHub treats authentication and signing as separate uses, so the public key must appear once under each type. Machine-specific signing files remain under `~/.config/git`, outside this repository.
 
-## Manutenção
+## Maintenance
 
 ```sh
 dotfiles doctor
 dotfiles update --dry-run
-mise run check
+dotfiles update
 mise bootstrap status
 mise bootstrap --dry-run
-mise bootstrap --yes
-mise upgrade
+mise run check
 ```
 
-`dotfiles doctor` faz uma verificação somente de leitura das ferramentas, atualização automática, FileVault, firewall, agente SSH e assinatura pelo 1Password, OrbStack, perfis de empresa, espaço em disco, Time Machine e estado do repositório. Ele nunca executa limpezas do Mole.
+`dotfiles doctor` is read-only. It checks the local tools, Homebrew updates, FileVault, the firewall, 1Password SSH and signing, OrbStack, company profiles, disk space, Time Machine, and the repository state.
 
-Quando há um terminal interativo, gum fornece entradas, escolhas, confirmações, indicadores de progresso e resumos estilizados. Em automações ou redirecionamentos, os scripts mantêm saída de texto e exigem flags explícitas.
+## Repository layout
 
-O Homebrew atualiza diariamente por meio de `domt4/autoupdate`. As versões fixadas pelo mise só mudam quando `mise.toml` for atualizado; as entradas `latest` avançam ao executar `dotfiles update`.
+- [`mise.toml`](mise.toml) is the machine manifest.
+- [`files/home`](files/home) contains the managed config files.
+- [`bin`](bin) contains bootstrap and maintenance commands.
+- [`config/skills.tsv`](config/skills.tsv) lists the agent skills to install.
