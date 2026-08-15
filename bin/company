@@ -7,7 +7,7 @@ profiles_dir="${XDG_CONFIG_HOME:-$HOME/.config}/company"
 usage() {
   printf '%s\n' \
     'Usage:' \
-    '  company add NAME --vault VAULT [--account ACCOUNT] KEY=Item/field [...]' \
+    '  company add NAME --vault VAULT [--account ACCOUNT] [--default KEY=VALUE] KEY=Item/field [...]' \
     '  company edit NAME' \
     '  company list' \
     '  company check NAME' \
@@ -44,6 +44,7 @@ case "$command_name" in
     account=""
     vault=""
     references=()
+    defaults=()
     while (($# > 0)); do
       case "$1" in
         --account)
@@ -54,6 +55,11 @@ case "$command_name" in
         --vault)
           (($# >= 2)) || { usage >&2; exit 2; }
           vault="$2"
+          shift 2
+          ;;
+        --default)
+          (($# >= 2)) || { usage >&2; exit 2; }
+          defaults+=("$2")
           shift 2
           ;;
         --)
@@ -72,9 +78,11 @@ case "$command_name" in
       esac
     done
     [[ -n "$vault" ]] || { printf 'Provide the 1Password vault with --vault.\n' >&2; exit 2; }
-    ((${#references[@]} > 0)) || { printf 'Provide at least one KEY=Item/field reference.\n' >&2; exit 2; }
+    ((${#references[@]} + ${#defaults[@]} > 0)) || { printf 'Provide at least one secret reference or default value.\n' >&2; exit 2; }
     keys=()
     values=()
+    default_keys=()
+    default_values=()
     seen_keys=" "
     for reference in "${references[@]}"; do
       [[ "$reference" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.+)$ ]] || { printf 'Invalid reference: %s\n' "$reference" >&2; exit 2; }
@@ -84,6 +92,15 @@ case "$command_name" in
       seen_keys+="$key "
       keys+=("$key")
       values+=("$value")
+    done
+    for default in "${defaults[@]}"; do
+      [[ "$default" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || { printf 'Invalid default: %s\n' "$default" >&2; exit 2; }
+      key="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      [[ "$seen_keys" != *" $key "* ]] || { printf 'Duplicate variable: %s\n' "$key" >&2; exit 2; }
+      seen_keys+="$key "
+      default_keys+=("$key")
+      default_values+=("$value")
     done
     command -v jq >/dev/null 2>&1 || { printf 'jq is required.\n' >&2; exit 1; }
     mkdir -p "$profiles_dir"
@@ -102,6 +119,9 @@ case "$command_name" in
       printf '[secrets]\n'
       for ((index = 0; index < ${#keys[@]}; index++)); do
         printf '%s = { provider = "company", value = %s }\n' "${keys[$index]}" "$(toml_string "${values[$index]}")"
+      done
+      for ((index = 0; index < ${#default_keys[@]}; index++)); do
+        printf '%s = { default = %s }\n' "${default_keys[$index]}" "$(toml_string "${default_values[$index]}")"
       done
     } > "$temporary"
     mv "$temporary" "$destination"

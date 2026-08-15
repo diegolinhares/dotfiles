@@ -50,15 +50,18 @@ O conjunto inclui React, Motion, Remotion, Playwright, Vitest, TLC Spec Driven, 
 
 Valores secretos ficam no 1Password. O fnox resolve as referências somente ao executar um processo, sem colocar os segredos no shell global. O repositório e os perfis locais guardam apenas referências.
 
+Para credenciais AWS pessoais, crie um item `AWS` do tipo `API Credential` no cofre privado da empresa, com os campos `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`. Escolha a região explicitamente para cada perfil; ela pode variar por empresa, conta ou projeto e não precisa ser armazenada como segredo.
+
 ```sh
 company add empresa \
   --account empresa.1password.com \
   --vault Employee \
-  AWS_ACCESS_KEY_ID=AWS/access-key-id \
-  AWS_SECRET_ACCESS_KEY=AWS/secret-access-key \
-  GOOGLE_API_KEY=Google/api-key
+  --default AWS_DEFAULT_REGION=us-east-2 \
+  AWS_ACCESS_KEY_ID=AWS/AWS_ACCESS_KEY_ID \
+  AWS_SECRET_ACCESS_KEY=AWS/AWS_SECRET_ACCESS_KEY
 
 company check empresa
+company run empresa -- aws sts get-caller-identity
 company run empresa -- rails server
 company shell empresa
 company list
@@ -66,7 +69,7 @@ company list
 
 O formato também aceita referências completas como `KEY=op://Vault/Item/field`. Ao entrar em outra empresa, crie os itens no cofre correto do 1Password e adicione um novo perfil. Os mesmos nomes de variáveis podem apontar para itens diferentes porque cada execução escolhe explicitamente o perfil.
 
-Os perfis fnox são salvos em `~/.config/company` com permissão privada e nunca entram no Git. A configuração segue o mesmo modelo do Nate, mas conta e cofre não ficam fixados no dotfiles.
+Os perfis fnox são salvos em `~/.config/company` com permissão privada e nunca entram no Git. A configuração segue o mesmo modelo do Nate, mas conta e cofre não ficam fixados no dotfiles. O Shell Plugin da AWS do 1Password é opcional e atende comandos AWS diretamente; o fnox continua sendo usado para Rails, testes, agentes e outros processos.
 
 ## SSH
 
